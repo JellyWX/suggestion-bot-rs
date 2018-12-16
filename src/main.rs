@@ -172,18 +172,28 @@ command!(suggest(context, message, args) {
             None => String::from("\u{00274E}"),
         };
 
-        if let None = suggest_channel {
-            // create channel
+        let messages = args.rest();
+        if messages.is_empty() {
+            let _ = message.reply("Please type your suggestion following the command.");
         }
         else {
-            for (channel, _) in g.channels().unwrap() {
-                if Some(channel.as_u64()) == suggest_channel {
-                    println!("Found");
+                for (channel, _) in g.channels().unwrap() {
+                    if Some(channel.as_u64()) == suggest_channel {
+                        println!("Found");
+                    }
                 }
-            }
         }
     }
 });
+
+
+fn create_channel() {
+
+}
+
+fn send_to() {
+
+}
 
 
 command!(help(_context, message) {
