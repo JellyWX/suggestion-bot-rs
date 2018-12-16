@@ -6,15 +6,13 @@ extern crate typemap;
 extern crate reqwest;
 
 use std::env;
-use serenity::prelude::EventHandler;
+use serenity::prelude::{Context, EventHandler, Mentionable};
 use serenity::model::gateway::{Game, Ready};
-use serenity::prelude::Context;
 use dotenv::dotenv;
 use typemap::Key;
 use serenity::model::id::*;
 use serenity::model::channel::*;
 use std::collections::HashMap;
-use serenity::prelude::Mentionable;
 
 
 struct Globals;
@@ -59,7 +57,7 @@ impl EventHandler for Handler {
         context.set_game(Game::playing("@Suggestion Bot help"));
     }
 
-    fn message(&self, ctx: Context, message: serenity::model::channel::Message) {
+    fn message(&self, ctx: Context, message: Message) {
         let g = match message.guild_id {
             Some(g) => g,
 
@@ -78,7 +76,45 @@ impl EventHandler for Handler {
         };
 
         if count == 0 {
-            mysql.prep_exec("INSERT INTO servers (id, prefix, threshold, bans) VALUES (:id, \"~\", 10, \"[]\")", params!{"id" => g.as_u64()}).unwrap();
+            mysql.prep_exec(r#"INSERT INTO servers (id, prefix, threshold, bans) VALUES (:id, "~", 10, "[]")"#, params!{"id" => g.as_u64()}).unwrap();
+        }
+    }
+
+    fn reaction_add(&self, ctx: Context, reaction: Reaction) {
+        let data = ctx.data.lock();
+        let mysql = data.get::<Globals>().unwrap();
+
+        let mut res = mysql.prep_exec(r"SELECT threshold, approve_channel, upvote_emoji, downvote_emoji FROM servers WHERE suggest_channel = :id", params!{"id" => reaction.channel_id.as_u64()}).unwrap();
+
+        match res.next() {
+            Some(r) => {
+                let (threshold, approve_channel, upvote_emoji, downvote_emoji) = mysql::from_row::<(usize, Option<u64>, Option<String>, Option<String>)>(r.unwrap());
+
+                let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
+                let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
+
+                let emoji = reaction.emoji.as_data();
+
+                if emoji == upvote {
+                    let r = reaction.emoji.clone();
+                    let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
+
+                    println!("{}", users.len());
+                    if users.len() > threshold + 1 {
+                        println!("passed");
+                    }
+                }
+                else if emoji == downvote {
+
+                }
+                else {
+                    let _ = reaction.delete();
+                }
+            },
+
+            None => {
+                return ()
+            },
         }
     }
 }
@@ -140,17 +176,7 @@ fn main() {
 
 command!(suggest(context, message, args) {
 
-    let g = match message.guild_id {
-        Some(g) => g,
-
-        None => return Ok(()),
-    };
-
-    let m = match message.member() {
-        Some(m) => m,
-
-        None => return Ok(()),
-    };
+    let g = message.guild_id.unwrap();
 
     let mut data = context.data.lock();
     let mut mysql = data.get::<Globals>().unwrap();
@@ -165,7 +191,6 @@ command!(suggest(context, message, args) {
 
         let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
         let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
-
 
         let messages = args.rest();
         if messages.is_empty() {
