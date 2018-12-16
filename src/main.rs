@@ -11,7 +11,10 @@ use serenity::model::gateway::{Game, Ready};
 use serenity::prelude::Context;
 use dotenv::dotenv;
 use typemap::Key;
+use serenity::model::id::*;
+use serenity::model::channel::*;
 use std::collections::HashMap;
+use serenity::prelude::Mentionable;
 
 
 struct Globals;
@@ -160,39 +163,48 @@ command!(suggest(context, message, args) {
             let _ = message.reply("You are banned from adding suggestions.");
         }
 
-        let upvote = match upvote_emoji {
-            Some(e) => e,
+        let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
+        let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
 
-            None => String::from("\u{002705}"),
-        };
-
-        let downvote = match downvote_emoji {
-            Some(e) => e,
-
-            None => String::from("\u{00274E}"),
-        };
 
         let messages = args.rest();
         if messages.is_empty() {
             let _ = message.reply("Please type your suggestion following the command.");
         }
         else {
-                for (channel, _) in g.channels().unwrap() {
-                    if Some(channel.as_u64()) == suggest_channel {
-                        println!("Found");
-                    }
-                }
+            let channel = match suggest_channel {
+                Some(c) => {
+                    let ch = ChannelId::from(c).to_channel();
+                    let c = match ch {
+                        Ok(c) => c.id(),
+
+                        Err(_) => create_channel(g, &mysql),
+                    };
+
+                    c
+                },
+
+                None => create_channel(g, &mysql),
+            };
+
+            let reply = channel.send_message(|m| {
+                m.content(format!("**Vote below on: ** \n```{}```\n*as suggested by {}*", messages, message.author.mention()))
+            }).unwrap();
+
+            let _ = reply.react(upvote);
+            let _ = reply.react(downvote);
         }
     }
 });
 
 
-fn create_channel() {
+fn create_channel(guild: GuildId, mysql: &mysql::Pool) -> ChannelId {
+    let channel = guild.create_channel("user-suggestions", ChannelType::Text, None);
 
-}
+    let id = ChannelId::from(channel.unwrap());
+    let _ = mysql.prep_exec("UPDATE servers SET suggest_channel = :id WHERE id = :g_id", params!{"id" => id.as_u64(), "g_id" => guild.as_u64()});
 
-fn send_to() {
-
+    id
 }
 
 
