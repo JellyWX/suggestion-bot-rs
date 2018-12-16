@@ -160,6 +160,28 @@ command!(suggest(context, message, args) {
             let _ = message.reply("You are banned from adding suggestions.");
         }
 
+        let upvote = match upvote_emoji {
+            Some(e) => e,
+
+            None => String::from("\u{002705}"),
+        };
+
+        let downvote = match downvote_emoji {
+            Some(e) => e,
+
+            None => String::from("\u{00274E}"),
+        };
+
+        if let None = suggest_channel {
+            // create channel
+        }
+        else {
+            for (channel, _) in g.channels().unwrap() {
+                if Some(channel.as_u64()) == suggest_channel {
+                    println!("Found");
+                }
+            }
+        }
     }
 });
 
