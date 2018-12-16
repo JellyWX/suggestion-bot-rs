@@ -55,6 +55,29 @@ impl EventHandler for Handler {
 
         context.set_game(Game::playing("@Suggestion Bot help"));
     }
+
+    fn message(&self, ctx: Context, message: serenity::model::channel::Message) {
+        let g = match message.guild_id {
+            Some(g) => g,
+
+            None => return (),
+        };
+
+        let data = ctx.data.lock();
+        let mysql = data.get::<Globals>().unwrap();
+
+        let mut res = mysql.prep_exec(r"SELECT COUNT(*) FROM servers WHERE id = :id", params!{"id" => g.as_u64()}).unwrap();
+
+        let count = match res.next() {
+            Some(r) => mysql::from_row::<u32>(r.unwrap()),
+
+            None => 0,
+        };
+
+        if count == 0 {
+            mysql.prep_exec("INSERT INTO servers (id, prefix, threshold, bans) VALUES (:id, \"~\", 10, \"[]\")", params!{"id" => g.as_u64()}).unwrap();
+        }
+    }
 }
 
 
@@ -120,16 +143,22 @@ command!(suggest(context, message, args) {
         None => return Ok(()),
     };
 
+    let m = match message.member() {
+        Some(m) => m,
+
+        None => return Ok(()),
+    };
+
     let mut data = context.data.lock();
     let mut mysql = data.get::<Globals>().unwrap();
 
     for res in mysql.prep_exec(r"SELECT suggest_channel, bans, upvote_emoji, downvote_emoji FROM servers WHERE id = :id", params!{"id" => g.as_u64()}).unwrap() {
 
-        let (suggest_channel, bans, upvote_emoji, downvote_emoji) = mysql::from_row::<(u64, String, String, String)>(res.unwrap());
+        let (suggest_channel, bans, upvote_emoji, downvote_emoji) = mysql::from_row::<(Option<u64>, String, Option<String>, Option<String>)>(res.unwrap());
 
-        println!("{} {} {} {}", suggest_channel, bans, upvote_emoji, downvote_emoji);
-
-
+        if bans.contains(message.author.id.as_u64().to_string().as_str()) {
+            let _ = message.reply("You are banned from adding suggestions.");
+        }
 
     }
 });
