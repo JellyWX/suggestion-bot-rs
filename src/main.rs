@@ -219,6 +219,7 @@ fn main() {
         .cmd("help", help)
         .cmd("invite", info)
         .cmd("info", info)
+        .cmd("prefix", set_prefix)
         .cmd("suggest", suggest)
         .cmd("s", suggest)
     );
@@ -302,6 +303,46 @@ fn create_approve_channel(guild: GuildId, mysql: &mysql::Pool) -> ChannelId {
 
     id
 }
+
+
+command!(set_prefix(context, message, args) {
+
+    let mut prefix;
+
+    match args.single::<String>() {
+        Ok(p) => {
+            prefix = p;
+        },
+
+        Err(_) => {
+            message.reply("Please specify a new prefix");
+            return Ok(());
+        },
+    }
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                message.reply("You must be a guild manager to perform this command");
+            }
+            else if prefix.len() > 5 {
+                message.reply("Prefix must be under 5 characters long");
+            }
+            else {
+                let mut data = context.data.lock();
+                let mut mysql = data.get::<Globals>().unwrap();
+
+                mysql.prep_exec("UPDATE servers SET prefix = :prefix WHERE id = :id", params!{"prefix" => prefix.clone(), "id" => message.guild_id.unwrap().as_u64()});
+
+                let _ = message.reply(&format!("Prefix changed to {}", prefix));
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
 
 
 command!(help(_context, message) {
