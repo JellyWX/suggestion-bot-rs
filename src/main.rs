@@ -102,7 +102,7 @@ impl EventHandler for Handler {
                     let g = GuildId::from(g);
 
                     if message.is_own() {
-                        let content = message.content.split("```").nth(1).unwrap().replace("```", "\n");
+                        let content = message.content.splitn(2, "```").nth(1).unwrap().replace("```", "\n");
 
                         if emoji == upvote {
                             let r = reaction.emoji.clone();
@@ -125,12 +125,14 @@ impl EventHandler for Handler {
                                     None => create_approve_channel(g, &mysql),
                                 };
 
-                                channel.send_message(|m| { m
+                                let _ = channel.send_message(|m| { m
                                     .embed(|e| { e
                                         .title("New Suggestion")
                                         .description(format!("{}\n\n{}", content, ping.unwrap_or(String::new())))
                                     })
-                                }).unwrap();
+                                });
+
+                                let _ = message.delete();
                             }
                         }
                         else {
