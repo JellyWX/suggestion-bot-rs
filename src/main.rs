@@ -12,6 +12,7 @@ use dotenv::dotenv;
 use typemap::Key;
 use serenity::model::id::*;
 use serenity::model::channel::*;
+use serenity::model::user::*;
 use std::collections::HashMap;
 
 
@@ -81,31 +82,61 @@ impl EventHandler for Handler {
     }
 
     fn reaction_add(&self, ctx: Context, reaction: Reaction) {
+
         let data = ctx.data.lock();
         let mysql = data.get::<Globals>().unwrap();
 
-        let mut res = mysql.prep_exec(r"SELECT threshold, approve_channel, upvote_emoji, downvote_emoji FROM servers WHERE suggest_channel = :id", params!{"id" => reaction.channel_id.as_u64()}).unwrap();
+        let mut res = mysql.prep_exec(r"SELECT id, threshold, approve_channel, upvote_emoji, downvote_emoji, ping FROM servers WHERE suggest_channel = :id", params!{"id" => reaction.channel_id.as_u64()}).unwrap();
 
         match res.next() {
             Some(r) => {
-                let (threshold, approve_channel, upvote_emoji, downvote_emoji) = mysql::from_row::<(usize, Option<u64>, Option<String>, Option<String>)>(r.unwrap());
+                let (g, threshold, approve_channel, upvote_emoji, downvote_emoji, ping) = mysql::from_row::<(u64, usize, Option<u64>, Option<String>, Option<String>, Option<String>)>(r.unwrap());
 
                 let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
                 let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
 
                 let emoji = reaction.emoji.as_data();
 
-                if emoji == upvote {
-                    let r = reaction.emoji.clone();
-                    let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
+                if emoji == upvote || emoji == downvote {
+                    let message = reaction.message().unwrap();
+                    let g = GuildId::from(g);
 
-                    println!("{}", users.len());
-                    if users.len() > threshold + 1 {
-                        println!("passed");
+                    if message.is_own() {
+                        let content = message.content.split("```").nth(1).unwrap().replace("```", "\n");
+
+                        if emoji == upvote {
+                            let r = reaction.emoji.clone();
+                            let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
+
+                            if users.len() > threshold {
+
+                                let channel = match approve_channel {
+                                    Some(c) => {
+                                        let ch = ChannelId::from(c).to_channel();
+                                        let c = match ch {
+                                            Ok(c) => c.id(),
+
+                                            Err(_) => create_approve_channel(g, &mysql),
+                                        };
+
+                                        c
+                                    },
+
+                                    None => create_approve_channel(g, &mysql),
+                                };
+
+                                channel.send_message(|m| { m
+                                    .embed(|e| { e
+                                        .title("New Suggestion")
+                                        .description(format!("{}\n\n{}", content, ping.unwrap_or(String::new())))
+                                    })
+                                }).unwrap();
+                            }
+                        }
+                        else {
+
+                        }
                     }
-                }
-                else if emoji == downvote {
-
                 }
                 else {
                     let _ = reaction.delete();
@@ -228,6 +259,15 @@ fn create_channel(guild: GuildId, mysql: &mysql::Pool) -> ChannelId {
 
     let id = ChannelId::from(channel.unwrap());
     let _ = mysql.prep_exec("UPDATE servers SET suggest_channel = :id WHERE id = :g_id", params!{"id" => id.as_u64(), "g_id" => guild.as_u64()});
+
+    id
+}
+
+fn create_approve_channel(guild: GuildId, mysql: &mysql::Pool) -> ChannelId {
+    let channel = guild.create_channel("approved-suggestions", ChannelType::Text, None);
+
+    let id = ChannelId::from(channel.unwrap());
+    let _ = mysql.prep_exec("UPDATE servers SET approve_channel = :id WHERE id = :g_id", params!{"id" => id.as_u64(), "g_id" => guild.as_u64()});
 
     id
 }
