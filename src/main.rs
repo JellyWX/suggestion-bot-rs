@@ -86,11 +86,11 @@ impl EventHandler for Handler {
         let data = ctx.data.lock();
         let mysql = data.get::<Globals>().unwrap();
 
-        let mut res = mysql.prep_exec(r"SELECT id, threshold, approve_channel, upvote_emoji, downvote_emoji, ping FROM servers WHERE suggest_channel = :id", params!{"id" => reaction.channel_id.as_u64()}).unwrap();
+        let mut res = mysql.prep_exec(r"SELECT id, threshold, approve_channel, upvote_emoji, downvote_emoji, role, ping FROM servers WHERE suggest_channel = :id", params!{"id" => reaction.channel_id.as_u64()}).unwrap();
 
         match res.next() {
             Some(r) => {
-                let (g, threshold, approve_channel, upvote_emoji, downvote_emoji, ping) = mysql::from_row::<(u64, usize, Option<u64>, Option<String>, Option<String>, Option<String>)>(r.unwrap());
+                let (g, threshold, approve_channel, upvote_emoji, downvote_emoji, role, ping) = mysql::from_row::<(u64, usize, Option<u64>, Option<String>, Option<String>, Option<u64>, Option<String>)>(r.unwrap());
 
                 let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
                 let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
@@ -103,12 +103,27 @@ impl EventHandler for Handler {
 
                     if message.is_own() {
                         let content = message.content.splitn(2, "```").nth(1).unwrap().replace("```", "\n");
+                        let user = reaction.user().unwrap();
+
+                        if user.bot {
+                            return ();
+                        }
+
+                        let pass = match role {
+                            Some(r) => {
+                                user.has_role(g, RoleId::from(r))
+                            },
+
+                            None => false,
+                        };
+
+                        println!("{}", pass);
 
                         if emoji == upvote {
                             let r = reaction.emoji.clone();
                             let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
 
-                            if users.len() > threshold {
+                            if users.len() > threshold || pass {
 
                                 let channel = match approve_channel {
                                     Some(c) => {
