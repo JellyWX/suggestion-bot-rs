@@ -117,8 +117,6 @@ impl EventHandler for Handler {
                             None => false,
                         };
 
-                        println!("{}", pass);
-
                         if emoji == upvote {
                             let r = reaction.emoji.clone();
                             let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
@@ -151,6 +149,22 @@ impl EventHandler for Handler {
                             }
                         }
                         else {
+
+                            if pass {
+
+                                for (id, channel) in g.to_partial_guild().unwrap().channels().unwrap() {
+                                    if channel.name == "rejected-suggestions" {
+                                        let _ = id.send_message(|m| { m
+                                            .embed(|e| { e
+                                                .title("Rejected Suggestion")
+                                                .description(format!("{}", content))
+                                            })
+                                        });
+                                    }
+                                }
+
+                                let _ = message.delete();
+                            }
 
                         }
                     }
