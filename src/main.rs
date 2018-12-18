@@ -77,7 +77,7 @@ impl EventHandler for Handler {
         };
 
         if count == 0 {
-            mysql.prep_exec(r#"INSERT INTO servers (id, prefix, threshold, bans) VALUES (:id, "~", 10, "[]")"#, params!{"id" => g.as_u64()}).unwrap();
+            mysql.prep_exec(r#"INSERT INTO servers (id, bans) VALUES (:id, "[]")"#, params!{"id" => g.as_u64()}).unwrap();
         }
     }
 
@@ -90,10 +90,7 @@ impl EventHandler for Handler {
 
         match res.next() {
             Some(r) => {
-                let (g, threshold, approve_channel, upvote_emoji, downvote_emoji, role, ping) = mysql::from_row::<(u64, usize, Option<u64>, Option<String>, Option<String>, Option<u64>, Option<String>)>(r.unwrap());
-
-                let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
-                let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
+                let (g, threshold, approve_channel, upvote, downvote, role, ping) = mysql::from_row::<(u64, usize, Option<u64>, String, String, Option<u64>, Option<String>)>(r.unwrap());
 
                 let emoji = reaction.emoji.as_data();
 
@@ -247,14 +244,11 @@ command!(suggest(context, message, args) {
 
     for res in mysql.prep_exec(r"SELECT suggest_channel, bans, upvote_emoji, downvote_emoji FROM servers WHERE id = :id", params!{"id" => g.as_u64()}).unwrap() {
 
-        let (suggest_channel, bans, upvote_emoji, downvote_emoji) = mysql::from_row::<(Option<u64>, String, Option<String>, Option<String>)>(res.unwrap());
+        let (suggest_channel, bans, upvote, downvote) = mysql::from_row::<(Option<u64>, String, String, String)>(res.unwrap());
 
         if bans.contains(message.author.id.as_u64().to_string().as_str()) {
             let _ = message.reply("You are banned from adding suggestions.");
         }
-
-        let upvote = upvote_emoji.unwrap_or(String::from("\u{002705}"));
-        let downvote = downvote_emoji.unwrap_or(String::from("\u{00274E}"));
 
         let messages = args.rest();
         if messages.is_empty() {
@@ -373,6 +367,7 @@ command!(set_threshold(context, message, args) {
 
                 if threshold > 100 {
                     let _ = message.reply("Please note that a threshold greater than 100 will mean suggestions can only be passed by admins.");
+                    threshold = 105
                 }
                 let mut data = context.data.lock();
                 let mut mysql = data.get::<Globals>().unwrap();
