@@ -453,16 +453,17 @@ command!(set_role(context, message, args) {
                     Ok(m) => {
                         let id = m.trim_matches(|c| !char::is_numeric(c) );
 
+                        let g_id = message.guild_id.unwrap();
+
+                        let mut data = context.data.lock();
+                        let mut mysql = data.get::<Globals>().unwrap();
+
                         if id.is_empty() {
-                            let _ = message.reply("Please state the ID/mention of the role.");
+                            mysql.prep_exec("UPDATE servers SET role = NULL WHERE id = :id", params!{"role" => id, "id" => g_id.as_u64()}).unwrap();
+
+                            let _ = message.reply("Auto-approve role disabled.");
                         }
                         else {
-
-                            let g_id = message.guild_id.unwrap();
-
-                            let mut data = context.data.lock();
-                            let mut mysql = data.get::<Globals>().unwrap();
-
                             let content = format!("Auto-approve role set to <@&{}>", id);
 
                             mysql.prep_exec("UPDATE servers SET role = :role WHERE id = :id", params!{"role" => id, "id" => g_id.as_u64()}).unwrap();
