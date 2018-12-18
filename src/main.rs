@@ -220,6 +220,7 @@ fn main() {
         .cmd("invite", info)
         .cmd("info", info)
         .cmd("prefix", set_prefix)
+        .cmd("threshold", set_threshold)
         .cmd("suggest", suggest)
         .cmd("s", suggest)
     );
@@ -395,18 +396,18 @@ command!(help(_context, message) {
     let _ = message.channel_id.send_message(|m| {
         m.embed(|e| {
             e.title("Help")
-            .description("__**Suggestion Bot Help Menu**__
+            .description(r#"__**Suggestion Bot Help Menu**__
 
-        `~prefix <desired prefix>` - changes the bots prefix.
-        `~roleset <@role OR \"off\">` - Sets the role that can instantly approve suggestions.
-        `~ban <user>` - Ban/unban specific members from adding suggestions.
-        `~suggest <Custom suggestion>` - Allows users to submit suggestions.
-        `~threshold <integer>` - allows you to set the number of votes a suggestion has to get before being approved.
-        `~upvote <emoji>` - change the upvote emoji
-        `~downvote <emoji>` - change the downvote emoji
-        `~ping <text>` - set some text to display at the base of approved suggestions
+`~prefix <desired prefix>` - changes the bots prefix.
+`~roleset <@role OR "off">` - Sets the role that can instantly approve suggestions.
+`~ban <user>` - Ban/unban specific members from adding suggestions.
+`~suggest <Custom suggestion>` - Allows users to submit suggestions. Alias: `~s`.
+`~threshold <integer>` - allows you to set the number of votes a suggestion has to get before being approved.
+`~upvote <emoji>` - change the upvote emoji
+`~downvote <emoji>` - change the downvote emoji
+`~ping <text>` - set some text to display at the base of approved suggestions
 
-        Info: want rejected suggestions to go somewhere? Make a channel called `rejected-suggestions` and we'll send them there for you.")
+Info: want rejected suggestions to go somewhere? Make a channel called `rejected-suggestions` and we'll send them there for you."#)
         })
     });
 });
