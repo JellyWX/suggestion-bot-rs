@@ -220,6 +220,7 @@ fn main() {
         .cmd("help", help)
         .cmd("invite", info)
         .cmd("info", info)
+        .cmd("roleset", set_role)
         .cmd("prefix", set_prefix)
         .cmd("threshold", set_threshold)
         .cmd("ban", ban_member)
@@ -428,6 +429,50 @@ command!(ban_member(context, message) {
 
                     None => {
                         let _ = message.reply("Please mention the user to ban.");
+                    }
+                }
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
+
+
+command!(set_role(context, message, args) {
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+                match args.single::<String>() {
+                    Ok(m) => {
+                        let id = m.trim_matches(|c| !char::is_numeric(c) );
+
+                        if id.is_empty() {
+                            let _ = message.reply("Please state the ID/mention of the role.");
+                        }
+                        else {
+
+                            let g_id = message.guild_id.unwrap();
+
+                            let mut data = context.data.lock();
+                            let mut mysql = data.get::<Globals>().unwrap();
+
+                            let content = format!("Auto-approve role set to <@&{}>", id);
+
+                            mysql.prep_exec("UPDATE servers SET role = :role WHERE id = :id", params!{"role" => id, "id" => g_id.as_u64()}).unwrap();
+
+                            let _ = message.reply(&content);
+                        }
+                    },
+
+                    Err(_) => {
+                        let _ = message.reply("Please state the ID/mention of the role.");
                     }
                 }
             }
