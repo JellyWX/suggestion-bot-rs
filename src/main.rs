@@ -497,58 +497,15 @@ command!(set_role(context, message, args) {
 
 
 command!(set_upvote(context, message, args) {
-
-    match message.member().unwrap().permissions() {
-        Ok(p) => {
-            if !p.manage_guild() {
-                let _ = message.reply("You must be a guild manager to perform this command");
-            }
-            else {
-                match args.single::<String>() {
-                    Ok(m) => {
-                        let emoji = m.trim_matches(|c| c == '<' || c == '>' || c == ':');
-
-                        let g_id = message.guild_id.unwrap();
-
-                        if emoji.is_empty() {
-                            let _ = message.reply("Please state the emoji you wish to use.");
-                        }
-                        else {
-                            match message.react(emoji) {
-                                Ok(_) => {
-                                    let content = format!("Upvote emoji set to {}", m);
-
-                                    let mut data = context.data.lock();
-                                    let mut mysql = data.get::<Globals>().unwrap();
-
-                                    mysql.prep_exec("UPDATE servers SET upvote_emoji = :emoji WHERE id = :id", params!{"emoji" => emoji, "id" => g_id.as_u64()}).unwrap();
-
-                                    let _ = message.reply(&content);
-                                },
-
-                                Err(_) => {
-                                    let _ = message.reply("Please state a valid emoji you wish to use.");
-                                }
-                            }
-                        }
-                    },
-
-                    Err(_) => {
-                        let _ = message.reply("Please state the emoji you wish to use.");
-                    }
-                }
-            }
-        },
-
-        Err(_) => {
-            return Ok(());
-        },
-    }
+    change_emoji(context, message, args, "upvote");
 });
 
 
 command!(set_downvote(context, message, args) {
+    change_emoji(context, message, args, "downvote");
+});
 
+fn change_emoji(context: &mut serenity::client::Context, message: &Message, mut args: serenity::framework::standard::Args, t: &str) {
     match message.member().unwrap().permissions() {
         Ok(p) => {
             if !p.manage_guild() {
@@ -567,12 +524,12 @@ command!(set_downvote(context, message, args) {
                         else {
                             match message.react(emoji) {
                                 Ok(_) => {
-                                    let content = format!("Downvote emoji set to {}", m);
+                                    let content = format!("{} emoji set to {}", t, m);
 
                                     let mut data = context.data.lock();
                                     let mut mysql = data.get::<Globals>().unwrap();
 
-                                    mysql.prep_exec("UPDATE servers SET downvote_emoji = :emoji WHERE id = :id", params!{"emoji" => emoji, "id" => g_id.as_u64()}).unwrap();
+                                    mysql.prep_exec(&format!("UPDATE servers SET {}_emoji = :emoji WHERE id = :id", t), params!{"emoji" => emoji, "id" => g_id.as_u64()}).unwrap();
 
                                     let _ = message.reply(&content);
                                 },
@@ -592,10 +549,10 @@ command!(set_downvote(context, message, args) {
         },
 
         Err(_) => {
-            return Ok(());
+
         },
     }
-});
+}
 
 
 command!(set_ping(context, message, args) {
