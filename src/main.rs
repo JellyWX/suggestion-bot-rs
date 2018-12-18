@@ -119,7 +119,7 @@ impl EventHandler for Handler {
 
                         if emoji == upvote {
                             let r = reaction.emoji.clone();
-                            let users: Vec<User> = reaction.users::<_, UserId>(r, Some(100), None).unwrap();
+                            let users: Vec<User> = reaction.users::<_, UserId>(r, Some(threshold as u8 + 1), None).unwrap();
 
                             if users.len() > threshold || pass {
 
@@ -307,34 +307,80 @@ fn create_approve_channel(guild: GuildId, mysql: &mysql::Pool) -> ChannelId {
 
 command!(set_prefix(context, message, args) {
 
-    let mut prefix;
-
-    match args.single::<String>() {
+    match message.member().unwrap().permissions() {
         Ok(p) => {
-            prefix = p;
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+                let mut prefix;
+
+                match args.single::<String>() {
+                    Ok(p) => {
+                        prefix = p;
+                    },
+
+                    Err(_) => {
+                        let _ = message.reply("Please specify a new prefix");
+                        return Ok(());
+                    },
+                }
+
+                if prefix.len() > 5 {
+                    let _ = message.reply("Prefix must be under 5 characters long");
+                }
+                else {
+                    let mut data = context.data.lock();
+                    let mut mysql = data.get::<Globals>().unwrap();
+
+                    let content = format!("Prefix changed to {}", prefix);
+
+                    mysql.prep_exec("UPDATE servers SET prefix = :prefix WHERE id = :id", params!{"prefix" => prefix, "id" => message.guild_id.unwrap().as_u64()}).unwrap();
+
+                    let _ = message.reply(&content);
+                }
+            }
         },
 
         Err(_) => {
-            message.reply("Please specify a new prefix");
             return Ok(());
         },
     }
+});
+
+
+command!(set_threshold(context, message, args) {
 
     match message.member().unwrap().permissions() {
         Ok(p) => {
             if !p.manage_guild() {
-                message.reply("You must be a guild manager to perform this command");
-            }
-            else if prefix.len() > 5 {
-                message.reply("Prefix must be under 5 characters long");
+                let _ = message.reply("You must be a guild manager to perform this command");
             }
             else {
+                let mut threshold;
+
+                match args.single::<u32>() {
+                    Ok(p) => {
+                        threshold = p;
+                    },
+
+                    Err(_) => {
+                        let _ = message.reply("Please specify a natural (ℕ) threshold");
+                        return Ok(());
+                    },
+                }
+
+                if threshold > 100 {
+                    let _ = message.reply("Please note that a threshold greater than 100 will mean suggestions can only be passed by admins.");
+                }
                 let mut data = context.data.lock();
                 let mut mysql = data.get::<Globals>().unwrap();
 
-                mysql.prep_exec("UPDATE servers SET prefix = :prefix WHERE id = :id", params!{"prefix" => prefix.clone(), "id" => message.guild_id.unwrap().as_u64()});
+                let content = format!("Vote threshold set to {}", threshold);
 
-                let _ = message.reply(&format!("Prefix changed to {}", prefix));
+                mysql.prep_exec("UPDATE servers SET threshold = :threshold WHERE id = :id", params!{"threshold" => threshold, "id" => message.guild_id.unwrap().as_u64()}).unwrap();
+
+                let _ = message.reply(&content);
             }
         },
 
