@@ -1,9 +1,13 @@
+#![feature(vec_remove_item)]
+
 #[macro_use] extern crate serenity;
 #[macro_use] extern crate mysql;
 
 extern crate dotenv;
 extern crate typemap;
 extern crate reqwest;
+extern crate serde;
+extern crate serde_json;
 
 use std::env;
 use serenity::prelude::{Context, EventHandler, Mentionable};
@@ -218,6 +222,7 @@ fn main() {
         .cmd("info", info)
         .cmd("prefix", set_prefix)
         .cmd("threshold", set_threshold)
+        .cmd("ban", ban_member)
         .cmd("suggest", suggest)
         .cmd("s", suggest)
     );
@@ -367,7 +372,7 @@ command!(set_threshold(context, message, args) {
 
                 if threshold > 100 {
                     let _ = message.reply("Please note that a threshold greater than 100 will mean suggestions can only be passed by admins.");
-                    threshold = 105
+                    threshold = 101
                 }
                 let mut data = context.data.lock();
                 let mut mysql = data.get::<Globals>().unwrap();
@@ -377,6 +382,54 @@ command!(set_threshold(context, message, args) {
                 mysql.prep_exec("UPDATE servers SET threshold = :threshold WHERE id = :id", params!{"threshold" => threshold, "id" => message.guild_id.unwrap().as_u64()}).unwrap();
 
                 let _ = message.reply(&content);
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
+
+
+command!(ban_member(context, message) {
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+                match message.mentions.get(0) {
+                    Some(m) => {
+                        let g_id = message.guild_id.unwrap();
+
+                        let mut data = context.data.lock();
+                        let mut mysql = data.get::<Globals>().unwrap();
+
+                        let q = mysql.prep_exec("SELECT bans FROM servers WHERE id = :id", params!{"id" => g_id.as_u64()}).unwrap();
+                        for res in q {
+                            let bans_str = mysql::from_row::<(String)>(res.unwrap());
+                            let mut bans: Vec<u64> = serde_json::from_str(&bans_str).unwrap();
+
+                            if bans.contains(m.id.as_u64()) {
+                                bans.remove_item(m.id.as_u64());
+                                let _ = message.reply("User unbanned from adding suggestions.");
+                            }
+                            else {
+                                bans.push(*m.id.as_u64());
+                                let _ = message.reply("User banned from adding suggestions.");
+                            }
+
+                            mysql.prep_exec("UPDATE servers SET bans = :bans WHERE id = :id", params!{"bans" => serde_json::to_string(&bans).unwrap(), "id" => g_id.as_u64()}).unwrap();
+                        }
+
+                    },
+
+                    None => {
+                        let _ = message.reply("Please mention the user to ban.");
+                    }
+                }
             }
         },
 
