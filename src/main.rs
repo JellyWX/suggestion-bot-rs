@@ -120,9 +120,16 @@ impl EventHandler for Handler {
 
                         if emoji == upvote {
                             let r = reaction.emoji.clone();
-                            let users: Vec<User> = reaction.users::<_, UserId>(r, Some(threshold as u8 + 1), None).unwrap();
+                            let t = threshold as u8 + 1;
 
-                            if users.len() > threshold || pass {
+                            let mut pass_2 = false;
+
+                            if t <= 100 {
+                                let users: Vec<User> = reaction.users::<_, UserId>(r, Some(t), None).unwrap();
+                                pass_2 = users.len() > threshold;
+                            }
+
+                            if pass_2 || pass {
 
                                 let channel = match approve_channel {
                                     Some(c) => {
@@ -221,6 +228,9 @@ fn main() {
         .cmd("invite", info)
         .cmd("info", info)
         .cmd("roleset", set_role)
+        .cmd("upvote", set_upvote)
+        .cmd("downvote", set_downvote)
+        .cmd("ping", set_ping)
         .cmd("prefix", set_prefix)
         .cmd("threshold", set_threshold)
         .cmd("ban", ban_member)
@@ -486,6 +496,149 @@ command!(set_role(context, message, args) {
 });
 
 
+command!(set_upvote(context, message, args) {
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+                match args.single::<String>() {
+                    Ok(m) => {
+                        let emoji = m.trim_matches(|c| c == '<' || c == '>' || c == ':');
+
+                        let g_id = message.guild_id.unwrap();
+
+                        if emoji.is_empty() {
+                            let _ = message.reply("Please state the emoji you wish to use.");
+                        }
+                        else {
+                            match message.react(emoji) {
+                                Ok(_) => {
+                                    let content = format!("Upvote emoji set to {}", m);
+
+                                    let mut data = context.data.lock();
+                                    let mut mysql = data.get::<Globals>().unwrap();
+
+                                    mysql.prep_exec("UPDATE servers SET upvote_emoji = :emoji WHERE id = :id", params!{"emoji" => emoji, "id" => g_id.as_u64()}).unwrap();
+
+                                    let _ = message.reply(&content);
+                                },
+
+                                Err(_) => {
+                                    let _ = message.reply("Please state a valid emoji you wish to use.");
+                                }
+                            }
+                        }
+                    },
+
+                    Err(_) => {
+                        let _ = message.reply("Please state the emoji you wish to use.");
+                    }
+                }
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
+
+
+command!(set_downvote(context, message, args) {
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+                match args.single::<String>() {
+                    Ok(m) => {
+                        let emoji = m.trim_matches(|c| c == '<' || c == '>' || c == ':');
+
+                        let g_id = message.guild_id.unwrap();
+
+                        if emoji.is_empty() {
+                            let _ = message.reply("Please state the emoji you wish to use.");
+                        }
+                        else {
+                            match message.react(emoji) {
+                                Ok(_) => {
+                                    let content = format!("Downvote emoji set to {}", m);
+
+                                    let mut data = context.data.lock();
+                                    let mut mysql = data.get::<Globals>().unwrap();
+
+                                    mysql.prep_exec("UPDATE servers SET downvote_emoji = :emoji WHERE id = :id", params!{"emoji" => emoji, "id" => g_id.as_u64()}).unwrap();
+
+                                    let _ = message.reply(&content);
+                                },
+
+                                Err(_) => {
+                                    let _ = message.reply("Please state a valid emoji you wish to use.");
+                                }
+                            }
+                        }
+                    },
+
+                    Err(_) => {
+                        let _ = message.reply("Please state the emoji you wish to use.");
+                    }
+                }
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
+
+
+command!(set_ping(context, message, args) {
+
+    match message.member().unwrap().permissions() {
+        Ok(p) => {
+            if !p.manage_guild() {
+                let _ = message.reply("You must be a guild manager to perform this command");
+            }
+            else {
+
+                let ping = args.rest();
+
+                let g_id = message.guild_id.unwrap();
+
+                if ping.is_empty() {
+                    let mut data = context.data.lock();
+                    let mut mysql = data.get::<Globals>().unwrap();
+
+                    mysql.prep_exec("UPDATE servers SET ping = NULL WHERE id = :id", params!{"id" => g_id.as_u64()}).unwrap();
+
+                    let _ = message.reply("Ping has been removed.");
+                }
+                else {
+                    let content = format!("Ping has been set to **{}**", ping);
+
+                    let mut data = context.data.lock();
+                    let mut mysql = data.get::<Globals>().unwrap();
+
+                    mysql.prep_exec("UPDATE servers SET ping = :ping WHERE id = :id", params!{"ping" => ping, "id" => g_id.as_u64()}).unwrap();
+
+                    let _ = message.reply(&content);
+                }
+            }
+        },
+
+        Err(_) => {
+            return Ok(());
+        },
+    }
+});
+
+
 command!(help(_context, message) {
     let _ = message.channel_id.send_message(|m| {
         m.embed(|e| {
@@ -499,7 +652,7 @@ command!(help(_context, message) {
 `~threshold <integer>` - allows you to set the number of votes a suggestion has to get before being approved.
 `~upvote <emoji>` - change the upvote emoji
 `~downvote <emoji>` - change the downvote emoji
-`~ping <text>` - set some text to display at the base of approved suggestions
+`~ping [text]` - set some text to display at the base of approved suggestions
 
 Info: want rejected suggestions to go somewhere? Make a channel called `rejected-suggestions` and we'll send them there for you."#)
         })
