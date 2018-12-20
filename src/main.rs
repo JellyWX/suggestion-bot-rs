@@ -149,7 +149,8 @@ impl EventHandler for Handler {
                                 let _ = channel.send_message(|m| { m
                                     .embed(|e| { e
                                         .title("New Suggestion")
-                                        .description(format!("{}\n\n{}", content, ping.unwrap_or(String::new())))
+                                        .description(format!("{}\n\n", content))
+                                        .footer(|f| f.text(ping.unwrap_or(String::new())))
                                     })
                                 });
 
