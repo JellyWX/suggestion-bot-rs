@@ -154,6 +154,8 @@ impl EventHandler for Handler {
                                     })
                                 });
 
+                                let _ = message.mentions.first().unwrap().direct_message(|m| m.content("Your suggestion has been passed!"));
+
                                 let _ = message.delete();
                             }
                         }
@@ -293,6 +295,8 @@ command!(suggest(context, message, args) {
 
             let _ = reply.react(upvote);
             let _ = reply.react(downvote);
+
+            let _ = message.reply("Your suggestion has been sent");
         }
     }
 });
