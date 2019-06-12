@@ -7,7 +7,6 @@ authors = ["jude-LafiteIII <judewrs@gmail.com>"]
 dotenv = "0.9.0"
 typemap = "*"
 mysql = "*"
-reqwest = "*"
 serde = "*"
 serde_json = "*"
 
